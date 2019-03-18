@@ -1,4 +1,4 @@
-import shutil, os, datetime, argparse, re
+import shutil, os, datetime, argparse, re, traceback
 
 A_STATION_IDS = ['a', 'A']
 B_STATION_IDS = ['b', 'B']
@@ -60,10 +60,40 @@ def rename(img_src_folder, img_dest_folder, starting_filename, station_id, sessi
                 files_copied.append(all_files[idx])
                 idx += 1
 
+    # Assumes that duplicate pictures are next to each other
+    if parse_ds is not None and station_id in C_STATION_IDS:
+        ds_raw_order = parse_ds.split(",")
+        ds_raw_order = list(map(lambda x: int(x), ds_raw_order))
+        new_ds_order = []
+        ds_counts = {
+            0 : 0,
+            1 : 0,
+            2 : 0,
+            3 : 0,
+            4 : 0
+        }
+        for num in ds_raw_order:
+            if not num in ds_counts.keys():
+                raise Exception("Invalid ds number: " + str(num))
+            if not num in new_ds_order:
+                new_ds_order.append(num)
+            ds_counts[num] += 1
+
+        for ds_num in new_ds_order:
+            for count in range(1, ds_counts[ds_num] + 1):
+                if ds_num == 0:
+                    new_name = "%s.%s.%s_%s_%d_%d_DS_%d.jpg" % (year, month, day, station_id.upper(), session_number, distance_travelled, count)
+                else:
+                    new_name = "%s.%s.%s_%s_%d_%d_DS%d_%d.jpg" % (year, month, day, station_id.upper(), session_number, distance_travelled, ds_num, count)
+                shutil.copyfile(img_src_folder + all_files[idx], img_dest_folder + new_name)
+                files_copied.append(all_files[idx])
+                idx += 1
+
+
     ds_num = 0
     for idx in range(0, len(all_files)):
         if all_files[idx] in files_copied: continue
-        if parse_ds:
+        if parse_ds is not None:
             if station_id in A_STATION_IDS or station_id in B_STATION_IDS:
                 ds_num += 1
                 new_name = "%s.%s.%s_%s_%d_%d_DS_%d.jpg" % (year, month, day, station_id.upper(), session_number, distance_travelled, ds_num)
@@ -84,7 +114,7 @@ if __name__ == '__main__':
     requiredNamed.add_argument('-n', '--session_number', help='Number of Session', type=int)
     requiredNamed.add_argument('-d', '--distance_travelled', help='Filename of first TSH picture', type=int)
     parser.add_argument('-a', '--date', help='Date of test (YYYY.MM.DD), defaults to today', type=str)
-    parser.add_argument('-s', '--ds', help='Rename extra files under the DS naming scheme', action='store_true')
+    parser.add_argument('-ds', '--ds', help='Rename extra files under the DS naming scheme', type=str)
     parser.add_argument('-r', '--recursive', help='Run renaming inside SUBFOLDERS in \'unconverted\' folder', action='store_true')
     parser.add_argument('-w', '--wrong', help='If you do the long way and do Pre/Post of each TSH rather than all Pre then all Post', action='store_true')
 
@@ -103,7 +133,7 @@ if __name__ == '__main__':
                     continue
                 doMe = rename(img_src_folder, img_dest_folder, None, matches.group(2), int(matches.group(3)), int(matches.group(4)), matches.group(1), args.ds, args.wrong)
             except Exception as e:
-                print (e)
+                print(traceback.format_exc())
                 pass
     else:
         doMe = rename(img_src_folder, img_dest_folder, args.starting_filename, args.station_letter, args.session_number, args.distance_travelled, args.date, args.ds, args.wrong)
